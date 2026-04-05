@@ -12,7 +12,7 @@ Supported targets:
 - **Instruction artifacts**: `SKILL.md`, prompts, policies, system instructions
 - **Executable artifacts**: scripts, validators, CLI tools, parsers, testable configs
 
-Core loop: identify target → choose evaluator → build/load tests → baseline → diagnose → archive lookup → patch strategy → patch → re-evaluate → keep/revert → report → archive export.
+Core loop: identify target → choose evaluator → build/load tests → baseline → diagnose → external verification → archive lookup → patch strategy → patch → re-evaluate → keep/revert → report → archive export.
 
 ## When to Use
 
@@ -106,7 +106,7 @@ Judge rules: if not explicit/observable → `false`. No charitable inference. Sh
 
 ## KEEP/REVERT (Instruction)
 
-**REVERT** if: any Must-Have regresses, must_have_pass_rate drops, new critical failure, flaky judge results.
+**REVERT** if: any Must-Have regresses, must_have_pass_rate drops, new critical failure, unstable judge results.
 **KEEP** only if: no Must-Have regressions AND at least one of:
 - `must_have_pass_rate` increases, or
 - at least 2 distinct `should_have` checks improve with no regressions, or
@@ -266,7 +266,7 @@ Store in `runs/<target_name>/<timestamp>/`:
 
 ---
 
-# Cross-Run Archive and Transfer Learning
+# Cross-Run Archive and Pattern Reuse
 
 Purpose: reuse reliable improvement patterns from prior runs without changing the current run's benchmark, evaluator, or safety rules.
 
