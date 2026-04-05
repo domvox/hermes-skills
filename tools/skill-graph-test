@@ -95,6 +95,43 @@ def test_skill(skill_dir):
             else:
                 check(rc == 0, f"  step{i+1}: {cmd[:50]}")
 
+def pii_scan():
+    """Scan all skills for PII leaked from .env key names"""
+    global PASS, FAIL
+    env_file = os.path.expanduser("~/.hermes/.env")
+    if not os.path.isfile(env_file): return
+
+    # Extract potential PII tokens from env key names
+    # FAKTUROWNIA_KOZLOWSKI_TOKEN → ["fakturownia", "kozlowski"]
+    # PURELYMAIL_ADVERTAX_PASSWORD → ["purelymail", "advertax"]
+    pii_tokens = set()
+    skip = {"access", "token", "password", "key", "api", "secret", "bot", "base", "url",
+            "home", "room", "user", "id", "provider", "model", "vision", "auxiliary",
+            "messaging", "cwd", "slug", "matrix", "discord", "openrouter", "firecrawl",
+            "parallel", "bws", "openai", "allowed", "users"}
+    with open(env_file) as f:
+        for line in f:
+            if "=" not in line: continue
+            key = line.split("=")[0].strip()
+            parts = [p.lower() for p in key.split("_") if len(p) > 3]
+            for p in parts:
+                if p not in skip:
+                    pii_tokens.add(p)
+
+    if not pii_tokens: return
+
+    print(f"\n━━━ PII scan (tokens: {', '.join(sorted(pii_tokens))}) ━━━")
+
+    for skill_file in sorted(glob.glob(os.path.expanduser("~/.hermes/skills/*/SKILL.md"))):
+        skill_name = os.path.basename(os.path.dirname(skill_file))
+        with open(skill_file) as f:
+            content = f.read().lower()
+        found = [t for t in pii_tokens if t in content]
+        if found:
+            check(False, f"{skill_name}: contains PII tokens: {', '.join(found)}")
+        else:
+            check(True, f"{skill_name}: clean")
+
 print("╔══════════════════════════════════════════════╗")
 print("║  SKILL GRAPH DEPENDENCY & COMPOSITION TEST   ║")
 print("╚══════════════════════════════════════════════╝")
@@ -104,6 +141,8 @@ if len(sys.argv) > 1:
 else:
     for d in sorted(glob.glob(os.path.expanduser("~/.hermes/skills/*/"))):
         test_skill(d)
+
+pii_scan()
 
 print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 print(f"  RESULT: {PASS}/{PASS+FAIL} passed, {FAIL} failed")
