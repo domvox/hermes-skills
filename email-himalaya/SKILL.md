@@ -40,7 +40,7 @@ This skill extends the built-in himalaya skill with Bitwarden-backed authenticat
 ## Authentication Flow
 
 ```
-BWS_ACCESS_TOKEN → bws secret list → PURELYMAIL_ADVERTAX_PASSWORD → himalaya auth.cmd
+BWS_ACCESS_TOKEN → bws secret list → <EMAIL_PASSWORD_SECRET> → himalaya auth.cmd
 ```
 
 The `himalaya-password` script in `~/.local/bin/` handles this chain.
