@@ -1,7 +1,7 @@
 ---
 always: false
-version: 0.5.0
-description: Dual-mode artifact optimizer with cross-run transfer learning and metacognitive self-modification. Iteratively improves instruction artifacts (binary checks) and executable artifacts (deterministic tests) using the strongest available evaluator.
+version: 0.6.1
+description: Dual-mode artifact optimizer with cross-run pattern reuse and conservative iterative improvement. Optimizes instruction artifacts (binary checks) and executable artifacts (deterministic tests) using the strongest available evaluator.
 ---
 
 # Skill Autoresearch
@@ -28,6 +28,8 @@ Evaluator priority: deterministic tests > parser/regex checks > structured LLM j
 
 If unclear, prefer the mode with the more deterministic evaluator.
 
+For hybrid targets (e.g. SKILL.md with helper scripts), evaluate each component with its strongest available evaluator and aggregate decisions conservatively. Deterministic failures in executable components cannot be overridden by instruction-only gains.
+
 ## Core Principles
 
 1. **One focused patch per iteration** — small, testable, interpretable
@@ -53,10 +55,12 @@ If unclear, prefer the mode with the more deterministic evaluator.
 4. **Load or generate tests** — freeze dev + holdout sets
 5. **Baseline** — evaluate untouched target on dev + holdout, save results
 6. **Diagnose** — use failing checks/tests to identify one patchable weakness (dev only)
-7. **Patch** — one focused change only
-8. **Re-evaluate** — same frozen tests
-9. **KEEP/REVERT** — mode-specific rules, write decision artifact
-10. **Iterate** — up to 5 (3 in fast mode), stop early if no improvement for 2 consecutive iterations
+7. **External verification** — if target references external tools/APIs/CLIs, verify commands, flags, URLs against official docs or `--help` output. Record discrepancies as high-priority diagnosis items. Skip if target is purely internal.
+8. **Archive lookup** — search prior runs for reusable patterns (see Archive section)
+9. **Patch** — one focused change only
+10. **Re-evaluate** — same frozen tests
+11. **KEEP/REVERT** — mode-specific rules, write decision artifact
+12. **Iterate** — up to 5 (3 in fast mode), stop early if no improvement for 2 consecutive iterations
 
 ---
 
@@ -102,8 +106,17 @@ Judge rules: if not explicit/observable → `false`. No charitable inference. Sh
 
 ## KEEP/REVERT (Instruction)
 
-**REVERT** if: any Must-Have regresses, must_have_pass_rate drops, new critical failure.
-**KEEP** only if: no Must-Have regressions, pass rate improves meaningfully, not just trivial Should-Have gains.
+**REVERT** if: any Must-Have regresses, must_have_pass_rate drops, new critical failure, flaky judge results.
+**KEEP** only if: no Must-Have regressions AND at least one of:
+- `must_have_pass_rate` increases, or
+- at least 2 distinct `should_have` checks improve with no regressions, or
+- one previously failing high-impact scenario now passes end-to-end.
+
+A `high-impact scenario` is one that touches a Must-Have rule, a safety-critical behavior, a commonly occurring user path, or a failure mode explicitly listed in the eval plan as high-priority.
+
+If KEEP/REVERT depends on a single disputed check or <10% total delta, rerun judging once with identical config. If results disagree, mark `low_confidence_boundary_case` and prefer REVERT.
+
+If multiple instruction cases show disputed or unstable judge outcomes within the same run, lower confidence for the run and prefer `needs human review` over strong KEEP claims.
 
 ---
 
@@ -152,7 +165,24 @@ One focused patch per iteration. Do not modify trusted tests. Do not hardcode fi
 
 **REVERT** if: any holdout Must-Have regresses, holdout pass rate drops, patch is brittle/test-specific, flaky results.
 **KEEP** only if: no regressions, holdout improves or critical failure resolved, patch is small and interpretable.
-If only dev improves but holdout flat → prefer REVERT.
+If only dev improves but holdout flat → prefer REVERT, unless the patch resolves a clearly diagnosed critical failure and holdout coverage for that failure mode is absent or weak.
+
+## Flaky Test Protocol
+
+If a test produces inconsistent results across runs:
+1. Rerun the failing case 3 times with identical config
+2. If results are inconsistent, mark the case as `unstable`
+3. Do not use unstable cases as evidence for KEEP
+4. Only use them if an independent deterministic signal confirms the result
+
+## Benchmark Validity
+
+If a frozen test is shown to contradict the target specification or a trusted external source:
+1. Stop the run immediately
+2. Mark the run as `benchmark_invalid` in the final report
+3. Do not patch toward the faulty test
+4. Record the contradiction evidence
+5. Start a new run only after fixing the benchmark
 
 ## Safety Constraints
 
@@ -183,7 +213,9 @@ Each iteration writes `iter_<n>_decision.json`:
 }
 ```
 
-Classes: `performance_keep` (behavior improved), `protocol_keep` (methodology improved), `revert`.
+Classes: `performance_keep` (behavior improved), `protocol_keep` (methodology/process improved without changing behavior-facing content), `revert`.
+`KEEP`/`REVERT` is the action outcome; `decision_class` explains why the outcome was chosen.
+`protocol_keep` is allowed only for changes to run process, evaluation setup, or documentation structure — never for changes that alter the target's observable behavior.
 For code mode also include: `failing_test_ids_before`, `failing_test_ids_after`, `trusted_test_source_used`.
 
 ---
@@ -291,9 +323,9 @@ Write ONLY if ALL true:
 
 Do NOT archive: reverted patches, ties with no gain, evaluator instability, formatting-only gains, post-baseline test modifications.
 
-## External Verification Step
+## External Verification Step (detailed)
 
-Insert after diagnosis, before archive lookup. If the target references external tools, APIs, CLIs, or services:
+This step is part of the main Optimization Loop (step 7). Full procedure:
 
 1. Identify all external tool commands, flags, URLs, and behaviors mentioned in the target
 2. Verify each against the tool's official documentation, `--help` output, or release pages
@@ -304,7 +336,7 @@ Skip this step only if the target is purely internal (prompts, policies, workflo
 
 ## Archive Lookup Step
 
-Insert after diagnosis and external verification, before first patch: `diagnosis → external verification → archive lookup → patch strategy → patch`
+Insert after external verification, before first patch: `diagnosis → external verification → archive lookup → patch strategy → patch`
 
 1. Read up to 50 recent records from global archive + 20 from per-target archive
 2. Score each record using text matching only (no embeddings):
@@ -322,8 +354,10 @@ transfer_score =
   -3 if confidence == low
 ```
 
-3. Select at most 5 records with `transfer_score >= 6`
-4. Write to `runs/<target>/<timestamp>/archive_lookup.json`
+3. Select at most 5 records with `transfer_score >= 6`. Require at least one match from `failure_mode_tags` or `patch_kind` — domain tags alone are insufficient.
+4. Write to `runs/<target>/<timestamp>/archive_lookup.json`, including which features drove each record's score.
+
+Note: This scoring is a bootstrap heuristic, not a semantic similarity measure. Log the top-10 ranked records even when selecting only top-5. When transfer scores are tied or close, prefer records with higher confidence, more recent creation date, and stronger evaluator types (deterministic > parser/regex > llm_judge > scalar_rubric).
 
 ## How Archive Records May Influence a Run
 
@@ -366,6 +400,19 @@ If archive advice conflicts with current run evidence, prefer current run eviden
 - Never archive gains from narrower formatting while semantic correctness stayed flat
 - For accounting/tax/VAT/KPiR/OCR/booking skills, prefer records that improved deterministic checks over LLM-judge-only improvements
 - If reused pattern increases judge score but weakens deterministic/Must-Have coverage, REVERT and mark suspicious
+
+---
+
+# Scope Limitations
+
+This skill is designed for small to medium artifacts. Not suitable for autonomous use on:
+- Multi-service distributed systems
+- Stateful production migrations
+- Security-critical refactors without trusted external tests
+- Changes requiring privileged or destructive operations
+- Codebases where a single patch can affect thousands of lines
+
+For these cases, use autoresearch only as an advisory tool with mandatory human review of every KEEP decision.
 
 ---
 
@@ -422,7 +469,7 @@ Before proposing any self-patch, assemble from past runs:
 - patch summaries, failure mode notes
 - archive export data, decision artifacts
 
-Write to `meta_corpus.json`.
+Write to `meta_corpus.json`. When assembling the meta-corpus, prefer more recent runs if older runs used weaker evaluators, incomplete decision artifacts, or pre-constitutional procedures.
 
 ## Meta-Diagnosis
 
