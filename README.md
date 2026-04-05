@@ -4,7 +4,7 @@ Reusable skills for [Hermes Agent](https://github.com/NousResearch/hermes-agent)
 
 ## Skills
 
-### bitwarden
+### [bitwarden](bitwarden/SKILL.md)
 
 Bitwarden Secrets Manager CLI (`bws`) integration. Read, list, and inject secrets into env vars and dotenv files. Uses native `bws run` for secret injection — no workarounds.
 
@@ -12,7 +12,7 @@ Bitwarden Secrets Manager CLI (`bws`) integration. Read, list, and inject secret
 - Stateless auth (no session management needed)
 - Rate limiting awareness with state file config
 
-### skill-autoresearch
+### [skill-autoresearch](skill-autoresearch/SKILL.md)
 
 Automated evaluation and improvement loop for skills and code. Iteratively optimizes instruction artifacts (SKILL.md, prompts) and executable artifacts (scripts, validators) using frozen benchmarks and structured evaluation.
 
