@@ -17,9 +17,10 @@ Bitwarden Secrets Manager CLI (`bws`) integration. Read, list, and inject secret
 Automated evaluation and improvement loop for skills and code. Iteratively optimizes instruction artifacts (SKILL.md, prompts) and executable artifacts (scripts, validators) using frozen benchmarks and structured evaluation.
 
 - Dual mode: instruction (LLM judge) and code (deterministic tests)
-- Cross-run archive with transfer learning
+- Cross-run archive with pattern reuse
 - Self-modification with constitutional safety rules
 - External verification step for tools/APIs referenced in targets
+- Mandatory PII and secrets scanning in every eval plan
 
 Inspired by [Karpathy's autoresearch](https://x.com/karpathy/status/1886192184808149383), adapted for AI agent artifacts.
 
