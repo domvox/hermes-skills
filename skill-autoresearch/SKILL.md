@@ -47,6 +47,13 @@ For hybrid targets (e.g. SKILL.md with helper scripts), evaluate each component 
 4. Save `judge_config.json` with model, temperature, date, mode
 5. If target already performs strongly with no failures, report `already strong`
 
+## Mandatory Checks
+
+Every eval plan MUST include these checks regardless of target type:
+- `no_hardcoded_pii` — no real names, emails, phone numbers, addresses, or credentials in examples. Use placeholders (`<name>`, `<email>`, `example.com`).
+- `no_hardcoded_secrets` — no tokens, passwords, API keys, or connection strings.
+These are Must-Have checks that block KEEP if they fail.
+
 ## Optimization Loop
 
 1. **Identify target** — path, type, mode, evaluator, risks
