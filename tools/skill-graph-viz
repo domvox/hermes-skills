@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""skill-graph-viz — Visualize dependency graph between Hermes skills"""
+import yaml, os, glob, sys
+
+try:
+    import graphviz
+except ImportError:
+    print("pip install graphviz"); sys.exit(1)
+
+SKILLS_DIR = os.path.expanduser("~/.hermes/skills")
+
+def load_skills():
+    skills = {}
+    for skill_file in sorted(glob.glob(f"{SKILLS_DIR}/*/SKILL.md")):
+        skill_dir = os.path.dirname(skill_file)
+        skill_name = os.path.basename(skill_dir)
+        with open(skill_file) as f:
+            content = f.read()
+        parts = content.split("---")
+        if len(parts) < 3: continue
+        try:
+            data = yaml.safe_load(parts[1])
+        except: continue
+        skills[skill_name] = data
+    return skills
+
+def build_graph(skills):
+    dot = graphviz.Digraph("skill-graph", format="png",
+        graph_attr={"bgcolor": "#1a1a2e", "rankdir": "LR", "pad": "0.5",
+                     "fontname": "Helvetica", "fontcolor": "white"},
+        node_attr={"style": "filled", "fontname": "Helvetica", "fontsize": "11",
+                    "shape": "box", "margin": "0.15,0.08"},
+        edge_attr={"color": "#4a9eff", "fontcolor": "#aaaaaa", "fontsize": "9",
+                    "fontname": "Helvetica"})
+
+    # Color by type
+    for name, data in skills.items():
+        deps = data.get("dependencies", {})
+        has_compositions = bool(deps.get("compositions"))
+        has_deps = bool(deps)
+
+        if has_compositions:
+            color = "#e94560"  # red — composition skill
+            label = f"{name}\n(composition)"
+        elif has_deps:
+            color = "#0f3460"  # blue — skill with deps
+            label = name
+        else:
+            color = "#16213e"  # dark — standalone
+            label = name
+
+        dot.node(name, label=label, fillcolor=color, fontcolor="white")
+
+    # Edges: skill dependencies
+    for name, data in skills.items():
+        deps = data.get("dependencies", {})
+        for dep_skill in deps.get("skills", []):
+            if dep_skill in skills:
+                dot.edge(dep_skill, name, label="skill dep")
+
+        # Tool dependencies as small nodes
+        for tool in deps.get("tools", []):
+            tool_id = f"tool_{tool}"
+            dot.node(tool_id, label=tool, shape="ellipse", fillcolor="#533483",
+                     fontcolor="white", fontsize="9")
+            dot.edge(tool_id, name, style="dashed", color="#666666")
+
+        # Env dependencies as small nodes
+        for env in deps.get("env", []):
+            env_id = f"env_{env}"
+            dot.node(env_id, label=env, shape="diamond", fillcolor="#1a1a2e",
+                     fontcolor="#ffcc00", fontsize="8", width="0.1", height="0.1")
+            dot.edge(env_id, name, style="dotted", color="#444444")
+
+    return dot
+
+def main():
+    skills = load_skills()
+    if not skills:
+        print("No skills found"); sys.exit(1)
+
+    # Filter to only skills with dependencies (cleaner graph)
+    dep_skills = {k: v for k, v in skills.items() if v.get("dependencies")}
+    # Also include skills that are referenced as dependencies
+    referenced = set()
+    for data in dep_skills.values():
+        for s in data.get("dependencies", {}).get("skills", []):
+            referenced.add(s)
+    for r in referenced:
+        if r in skills and r not in dep_skills:
+            dep_skills[r] = skills[r]
+
+    dot = build_graph(dep_skills)
+
+    output = os.path.expanduser("~/.hermes/skills/skill-graph")
+    dot.render(output, cleanup=True)
+    print(f"Graph saved: {output}.png")
+    print(f"Skills with dependencies: {len(dep_skills)}")
+
+    # Print text summary
+    print("\nDependency map:")
+    for name, data in sorted(dep_skills.items()):
+        deps = data.get("dependencies", {})
+        skill_deps = deps.get("skills", [])
+        tools = deps.get("tools", [])
+        comps = [c["name"] for c in deps.get("compositions", [])]
+        parts = []
+        if skill_deps: parts.append(f"skills: {', '.join(skill_deps)}")
+        if tools: parts.append(f"tools: {', '.join(tools)}")
+        if comps: parts.append(f"compositions: {', '.join(comps)}")
+        if parts:
+            print(f"  {name} → {'; '.join(parts)}")
+        else:
+            print(f"  {name} (standalone)")
+
+if __name__ == "__main__":
+    main()

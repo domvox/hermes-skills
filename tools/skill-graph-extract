@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""skill-graph-extract — Analyze Hermes sessions and suggest new skills or compositions"""
+import json, os, glob, re, sys
+from collections import Counter, defaultdict
+
+SESSIONS_DIR = os.path.expanduser("~/.hermes/sessions")
+SKILLS_DIR = os.path.expanduser("~/.hermes/skills")
+
+def load_sessions():
+    sessions = []
+    for sf in sorted(glob.glob(f"{SESSIONS_DIR}/*.json")):
+        with open(sf) as f:
+            data = json.load(f)
+        sessions.append(data)
+    return sessions
+
+def extract_tool_calls(sessions):
+    """Extract all tool calls with arguments from sessions"""
+    calls = []
+    for session in sessions:
+        session_calls = []
+        for msg in session.get("messages", []):
+            for tc in msg.get("tool_calls", []):
+                func = tc.get("function", {})
+                name = func.get("name", "")
+                args = func.get("arguments", "")
+                if isinstance(args, str):
+                    try: args = json.loads(args)
+                    except: args = {"raw": args}
+                session_calls.append({"tool": name, "args": args})
+        if session_calls:
+            calls.append({"session_id": session.get("session_id", ""), "calls": session_calls})
+    return calls
+
+def extract_cli_commands(sessions):
+    """Extract CLI commands from terminal tool calls"""
+    cmds = []
+    for session in sessions:
+        for msg in session.get("messages", []):
+            for tc in msg.get("tool_calls", []):
+                func = tc.get("function", {})
+                if func.get("name") == "terminal":
+                    args = func.get("arguments", "")
+                    if isinstance(args, str):
+                        try: args = json.loads(args)
+                        except: continue
+                    cmd = args.get("command", args.get("cmd", ""))
+                    if cmd:
+                        cmds.append(cmd)
+    return cmds
+
+def find_repeated_patterns(cmds, min_count=2):
+    """Find CLI tool patterns that repeat across sessions"""
+    tool_cmds = defaultdict(list)
+    for cmd in cmds:
+        for tool in ["bws", "himalaya", "gh", "git", "cargo", "docker", "virsh",
+                      "curl", "ssh", "scp", "tailscale", "bun", "npm"]:
+            if tool in cmd.split()[0:3]:
+                tool_cmds[tool].append(cmd)
+                break
+    return {k: v for k, v in tool_cmds.items() if len(v) >= min_count}
+
+def find_existing_skills():
+    """Load existing skill names and their covered tools"""
+    skills = {}
+    for skill_file in glob.glob(f"{SKILLS_DIR}/*/SKILL.md"):
+        name = os.path.basename(os.path.dirname(skill_file))
+        with open(skill_file) as f:
+            content = f.read().lower()
+        skills[name] = content
+    return skills
+
+def suggest_skills(patterns, existing_skills):
+    """Suggest new skills based on patterns not covered by existing skills"""
+    suggestions = []
+    for tool, cmds in sorted(patterns.items(), key=lambda x: -len(x[1])):
+        # Check if any existing skill covers this tool
+        covered = False
+        for skill_name, content in existing_skills.items():
+            if tool in content:
+                covered = True
+                break
+
+        if not covered:
+            suggestions.append({
+                "tool": tool,
+                "usage_count": len(cmds),
+                "example_commands": list(set(cmds))[:5],
+                "suggestion": f"Create skill for '{tool}' — used {len(cmds)} times with no covering skill"
+            })
+
+    return suggestions
+
+def find_composition_candidates(sessions):
+    """Find tool sequences that suggest composition skills"""
+    sequences = []
+    for session in sessions:
+        seq = []
+        for msg in session.get("messages", []):
+            for tc in msg.get("tool_calls", []):
+                name = tc.get("function", {}).get("name", "")
+                if name == "terminal":
+                    args = tc.get("function", {}).get("arguments", "")
+                    if isinstance(args, str):
+                        try: args = json.loads(args)
+                        except: continue
+                    cmd = args.get("command", args.get("cmd", ""))
+                    for tool in ["bws", "himalaya", "gh", "git", "cargo"]:
+                        if tool in str(cmd)[:50]:
+                            seq.append(tool)
+                            break
+        if len(seq) >= 2:
+            sequences.append(seq)
+
+    # Find repeated pairs
+    pair_counts = Counter()
+    for seq in sequences:
+        seen = set()
+        for i in range(len(seq) - 1):
+            pair = (seq[i], seq[i+1])
+            if pair not in seen:
+                pair_counts[pair] += 1
+                seen.add(pair)
+
+    return {pair: count for pair, count in pair_counts.items() if count >= 2}
+
+def main():
+    sessions = load_sessions()
+    if not sessions:
+        print("No sessions found"); sys.exit(1)
+
+    cmds = extract_cli_commands(sessions)
+    patterns = find_repeated_patterns(cmds)
+    existing = find_existing_skills()
+    suggestions = suggest_skills(patterns, existing)
+    compositions = find_composition_candidates(sessions)
+
+    print("╔══════════════════════════════════════════════╗")
+    print("║  SKILL GRAPH AUTO-EXTRACTION REPORT          ║")
+    print("╚══════════════════════════════════════════════╝")
+
+    print(f"\nSessions analyzed: {len(sessions)}")
+    print(f"CLI commands extracted: {len(cmds)}")
+    print(f"Existing skills: {len(existing)}")
+
+    print(f"\n━━━ CLI Tool Usage ━━━")
+    for tool, tool_cmds in sorted(patterns.items(), key=lambda x: -len(x[1])):
+        covered = any(tool in content for content in existing.values())
+        status = "✅ covered" if covered else "⚠️  no skill"
+        print(f"  {len(tool_cmds):3d}x {tool:12s} {status}")
+
+    if suggestions:
+        print(f"\n━━━ Suggested New Skills ━━━")
+        for s in suggestions:
+            print(f"\n  📋 {s['suggestion']}")
+            print(f"     Example commands:")
+            for cmd in s['example_commands'][:3]:
+                print(f"       $ {cmd[:80]}")
+    else:
+        print(f"\n━━━ No new skills suggested — all tools covered ━━━")
+
+    if compositions:
+        print(f"\n━━━ Composition Candidates ━━━")
+        for (a, b), count in sorted(compositions.items(), key=lambda x: -x[1]):
+            print(f"  {count}x {a} → {b}")
+    else:
+        print(f"\n━━━ No composition candidates found (need more sessions) ━━━")
+
+    # Save report
+    report = {
+        "sessions": len(sessions),
+        "commands": len(cmds),
+        "patterns": {k: len(v) for k, v in patterns.items()},
+        "suggestions": suggestions,
+        "compositions": {f"{a}->{b}": c for (a,b), c in compositions.items()}
+    }
+    report_path = os.path.expanduser("~/.hermes/skills/extraction-report.json")
+    with open(report_path, "w") as f:
+        json.dump(report, f, indent=2)
+    print(f"\nReport saved: {report_path}")
+
+if __name__ == "__main__":
+    main()

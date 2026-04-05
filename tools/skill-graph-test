@@ -102,8 +102,7 @@ def pii_scan():
     if not os.path.isfile(env_file): return
 
     # Extract potential PII tokens from env key names
-    # FAKTUROWNIA_KOZLOWSKI_TOKEN → ["fakturownia", "kozlowski"]
-    # PURELYMAIL_ADVERTAX_PASSWORD → ["purelymail", "advertax"]
+    # e.g. MYCOMPANY_SERVICE_TOKEN → ["mycompany", "service"]
     pii_tokens = set()
     skip = {"access", "token", "password", "key", "api", "secret", "bot", "base", "url",
             "home", "room", "user", "id", "provider", "model", "vision", "auxiliary",
