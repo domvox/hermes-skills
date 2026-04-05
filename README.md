@@ -10,21 +10,22 @@ Reusable skills and a dependency verification system for [Hermes Agent](https://
 
 Skills can declare what they depend on — tools, env vars, other skills — and define multi-step composition tests. The system verifies everything works end-to-end.
 
-![Skill Graph](docs/skill-graph.png)
+```mermaid
+graph LR
+    BWS_ACCESS_TOKEN([🔑 BWS_ACCESS_TOKEN]):::env --> bitwarden
+    bws([⚙️ bws]):::tool --> bitwarden
+    bitwarden[🔒 bitwarden]:::skill --> email-himalaya
+    himalaya([⚙️ himalaya]):::tool --> email-himalaya
+    himalaya-password([⚙️ himalaya-password]):::tool --> email-himalaya
+    email-himalaya[📧 email-himalaya\ncomposition]:::comp
 
-### Example: how skills chain together
+    classDef skill fill:#0f3460,stroke:#4a9eff,color:white
+    classDef comp fill:#e94560,stroke:#ff6b6b,color:white
+    classDef tool fill:#533483,stroke:#9b59b6,color:white
+    classDef env fill:#1a1a2e,stroke:#ffcc00,color:#ffcc00
+```
 
-```
-bitwarden skill          email-himalaya skill
-┌──────────────┐         ┌─────────────────────────┐
-│ tools: [bws] │────────▶│ skills: [bitwarden]      │
-│ env: [BWS_   │         │ tools: [himalaya]        │
-│  ACCESS_     │         │ composition:             │
-│  TOKEN]      │         │   bws → password →       │
-│ verify:      │         │   himalaya → email list  │
-│  bws --ver   │         └─────────────────────────┘
-└──────────────┘
-```
+**Composition test:** `BWS_ACCESS_TOKEN` → `bws secret list` → password → `himalaya envelope list` → ✅
 
 ### Demo: `skill-graph-test`
 
