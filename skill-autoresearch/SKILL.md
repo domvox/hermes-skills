@@ -1,6 +1,6 @@
 ---
 always: false
-version: 0.6.1
+version: 0.7.0
 description: Dual-mode artifact optimizer with cross-run pattern reuse and conservative iterative improvement. Optimizes instruction artifacts (binary checks) and executable artifacts (deterministic tests) using the strongest available evaluator.
 ---
 
@@ -52,7 +52,21 @@ For hybrid targets (e.g. SKILL.md with helper scripts), evaluate each component 
 Every eval plan MUST include these checks regardless of target type:
 - `no_hardcoded_pii` — no real names, emails, phone numbers, addresses, or credentials in examples. Use placeholders (`<name>`, `<email>`, `example.com`).
 - `no_hardcoded_secrets` — no tokens, passwords, API keys, or connection strings.
+- `dependencies_satisfied` — if target has `dependencies` in frontmatter, verify all tools are installed, env vars are set, and verify commands pass.
+- `compositions_pass` — if target has `compositions` in dependencies, run each composition's steps and verify expected outputs.
 These are Must-Have checks that block KEEP if they fail.
+
+## Dependency Verification Protocol
+
+If the target SKILL.md contains a `dependencies` section in frontmatter:
+
+1. **Tools check**: For each tool in `dependencies.tools`, verify it exists in PATH (`which <tool>`)
+2. **Env check**: For each var in `dependencies.env`, verify it is set and non-empty
+3. **Verify commands**: For each entry in `dependencies.verify`, run `cmd` and check output contains `expect` (or value > `expect_gt` for numeric)
+4. **Skill dependencies**: For each skill in `dependencies.skills`, verify that skill exists in `~/.hermes/skills/` and its own dependencies are satisfied (recursive, max depth 3)
+5. **Composition tests**: For each entry in `dependencies.compositions`, run all steps in order. If any step fails, the composition fails. Record results in `composition_results.json`
+
+Dependency verification runs as part of baseline evaluation (step 5 in Optimization Loop). Failed dependencies are reported as Must-Have failures.
 
 ## Optimization Loop
 

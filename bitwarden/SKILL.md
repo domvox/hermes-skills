@@ -1,9 +1,17 @@
 ---
 name: bitwarden
 description: Set up and use Bitwarden Secrets Manager CLI (bws). Use when reading, listing, or injecting secrets into env vars and dotenv files.
-version: 1.4.0
+version: 1.5.0
 author: DomKo
 license: MIT
+dependencies:
+  tools: [bws]
+  env: [BWS_ACCESS_TOKEN]
+  verify:
+    - cmd: "bws --version"
+      expect: "bws"
+    - cmd: "bws secret list 2>&1 | head -1"
+      expect: "["
 metadata:
   hermes:
     tags: [security, secrets, bitwarden, bws, cli]

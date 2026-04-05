@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""skill-graph-test — Dependency and composition verification for Hermes skills"""
+import yaml, subprocess, os, sys, glob
+
+BWS_TOKEN = ""
+try:
+    with open(os.path.expanduser("~/.hermes/.env")) as f:
+        for line in f:
+            if line.startswith("BWS_ACCESS_TOKEN="):
+                BWS_TOKEN = line.strip().split("=", 1)[1]
+except: pass
+
+ENV = {**os.environ, "BWS_ACCESS_TOKEN": BWS_TOKEN}
+PASS = FAIL = 0
+
+def check(ok, msg):
+    global PASS, FAIL
+    if ok:
+        PASS += 1; print(f"  ✅ {msg}")
+    else:
+        FAIL += 1; print(f"  ❌ {msg}")
+
+def run_cmd(cmd, timeout=30):
+    try:
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout, env=ENV)
+        return r.stdout + r.stderr, r.returncode
+    except Exception as e:
+        return str(e), 1
+
+def test_skill(skill_dir):
+    skill_file = os.path.join(skill_dir, "SKILL.md")
+    if not os.path.isfile(skill_file): return
+    with open(skill_file) as f:
+        content = f.read()
+    parts = content.split("---")
+    if len(parts) < 3: return
+    try:
+        data = yaml.safe_load(parts[1])
+    except: return
+    deps = data.get("dependencies")
+    if not deps: return
+
+    name = data.get("name", os.path.basename(skill_dir))
+    print(f"\n━━━ {name} ━━━")
+
+    for tool in deps.get("tools", []):
+        out, rc = run_cmd(f"which {tool}")
+        check(rc == 0, f"tool: {tool}")
+
+    for var in deps.get("env", []):
+        found = bool(ENV.get(var))
+        if not found:
+            try:
+                with open(os.path.expanduser("~/.hermes/.env")) as ef:
+                    found = any(l.startswith(var + "=") for l in ef)
+            except: pass
+        check(found, f"env: {var}")
+
+    for skill in deps.get("skills", []):
+        exists = os.path.isdir(os.path.expanduser(f"~/.hermes/skills/{skill}"))
+        check(exists, f"skill: {skill}")
+
+    for v in deps.get("verify", []):
+        cmd = v.get("cmd", "")
+        expect = v.get("expect", "")
+        expect_gt = v.get("expect_gt")
+        out, rc = run_cmd(cmd)
+        if expect:
+            check(expect in out, f"verify: {cmd[:60]}")
+        elif expect_gt is not None:
+            try:
+                val = int(out.strip())
+                check(val > expect_gt, f"verify: {cmd[:60]} → {val}")
+            except:
+                check(False, f"verify: {cmd[:60]} → parse error")
+        else:
+            check(rc == 0, f"verify: {cmd[:60]}")
+
+    for comp in deps.get("compositions", []):
+        cname = comp.get("name", "unnamed")
+        print(f"  composition: {cname}")
+        for i, step in enumerate(comp.get("steps", [])):
+            cmd = step.get("cmd", "")
+            expect = step.get("expect", "")
+            expect_gt = step.get("expect_gt")
+            out, rc = run_cmd(cmd)
+            if expect:
+                check(expect in out, f"  step{i+1}: {cmd[:50]}")
+            elif expect_gt is not None:
+                try:
+                    val = int(out.strip())
+                    check(val > expect_gt, f"  step{i+1}: {cmd[:50]} → {val}")
+                except:
+                    check(False, f"  step{i+1}: {cmd[:50]} → parse error")
+            else:
+                check(rc == 0, f"  step{i+1}: {cmd[:50]}")
+
+print("╔══════════════════════════════════════════════╗")
+print("║  SKILL GRAPH DEPENDENCY & COMPOSITION TEST   ║")
+print("╚══════════════════════════════════════════════╝")
+
+if len(sys.argv) > 1:
+    test_skill(os.path.expanduser(f"~/.hermes/skills/{sys.argv[1]}"))
+else:
+    for d in sorted(glob.glob(os.path.expanduser("~/.hermes/skills/*/"))):
+        test_skill(d)
+
+print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+print(f"  RESULT: {PASS}/{PASS+FAIL} passed, {FAIL} failed")
+print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+sys.exit(1 if FAIL else 0)
