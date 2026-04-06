@@ -1,14 +1,20 @@
 # hermes-skills
 
-Reusable skills and a dependency verification system for [Hermes Agent](https://github.com/NousResearch/hermes-agent).
+Reusable skills and a dependency graph system for [Hermes Agent](https://github.com/NousResearch/hermes-agent).
 
 ## What's here
 
 **3 skills** you can drop into `~/.hermes/skills/` and use immediately, plus **3 tools** that verify dependencies, visualize the skill graph, and suggest new skills from your session history.
 
+| Skill | Version | Description |
+|-------|---------|-------------|
+| [bitwarden](bitwarden/SKILL.md) | 1.5.0 | Bitwarden Secrets Manager CLI (`bws`) — secret injection, env vars, dotenv |
+| [email-himalaya](email-himalaya/SKILL.md) | 1.0.0 | Composition skill — chains bitwarden → himalaya for passwordless email |
+| [skill-autoresearch](skill-autoresearch/SKILL.md) | 0.7.0 | Automated evaluation loop — benchmark → diagnose → verify → patch → KEEP/REVERT |
+
 ## Skill Graph
 
-Skills can declare what they depend on — tools, env vars, other skills — and define multi-step composition tests. The system verifies everything works end-to-end.
+Skills declare dependencies (tools, env vars, other skills) and define multi-step composition tests. The system verifies everything works end-to-end.
 
 ```mermaid
 graph LR
@@ -69,22 +75,6 @@ CLI commands extracted: 125
 ```
 
 When it finds tools you use frequently but have no skill for, it suggests creating one.
-
-## Skills
-
-### [bitwarden](bitwarden/SKILL.md)
-
-Bitwarden Secrets Manager CLI (`bws`) integration. Native `bws run` for secret injection, verified against official Bitwarden CLI docs.
-
-### [email-himalaya](email-himalaya/SKILL.md)
-
-Composition skill — chains bitwarden → himalaya for secure email without plaintext passwords.
-
-### [skill-autoresearch](skill-autoresearch/SKILL.md)
-
-Automated evaluation and improvement loop. Point it at any SKILL.md or script: frozen benchmark → diagnose → external verification → patch → KEEP/REVERT. Finds outdated commands, missing guardrails, PII in examples.
-
-Inspired by [Karpathy's autoresearch](https://x.com/karpathy/status/1886192184808149383).
 
 ## Tools
 
