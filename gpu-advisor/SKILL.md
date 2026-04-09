@@ -25,8 +25,11 @@ Detect your GPU and get actionable recommendations for running LLMs locally with
 ## Prerequisites
 
 - **AMD GPU**: `rocm-smi` available (ROCm installed)
+  - Verify: `rocm-smi --showinfo`
 - **NVIDIA GPU**: `nvidia-smi` available (CUDA drivers installed)
+  - Verify: `nvidia-smi`
 - Python 3.8+ (stdlib only, no dependencies)
+  - Verify: `python3 --version`
 
 ## Commands
 
@@ -44,7 +47,7 @@ Returns: GPU name, arch, VRAM total/used/free, driver version, compute platform.
 python3 scripts/gpu_advisor.py recommend --model Qwen3.5-27B --quant Q5_K_M
 ```
 
-Returns: whether it fits, recommended KV cache type (f16/q4_0/turbo3/turbo4), max context length, estimated throughput class.
+Returns: whether it fits, recommended KV cache type (f16/q8_0/q4_0/turbo3/turbo4), max context length.
 
 ### Check if a specific config fits
 
@@ -63,6 +66,7 @@ Total VRAM = Model weights + KV cache + Compute overhead (~500MB)
 
 KV cache size = 2 × n_layers × n_kv_heads × head_dim × ctx_length × bytes_per_element
   f16:    2 bytes/element (baseline)
+  q8_0:   1 byte/element (2× compression)
   q4_0:   0.5 bytes/element (4× compression)
   turbo3: 0.375 bytes/element (5.3× compression)
   turbo4: 0.25 bytes/element (8× compression)
@@ -100,11 +104,18 @@ The advisor includes VRAM profiles for popular models:
 |-------|--------|--------|--------|------|--------|----------|----------|
 | Qwen3.5-9B | 9B | 5.5G | 6.6G | 9.5G | 40 | 8 | 128 |
 | Qwen3.5-27B | 27B | 15.3G | 18.5G | 27.2G | 64 | 8 | 128 |
-| Gemma-4-26B-A4B | 26B | 15.9G | — | — | 50 | 16 | 128 |
+| Gemma-4-26B-A4B | 26B | 15.9G | — | — | 50 | 4 | 256 |
 | Llama-3.1-8B | 8B | 4.9G | 5.7G | 8.5G | 32 | 8 | 128 |
+
+## Guardrails
+
+- **VRAM Safety**: Do not exceed 90% of free VRAM; OOM errors may crash system processes.
+- **Thermal Limits**: Monitor GPU temperatures during long context inference to prevent throttling.
+- **Driver Integrity**: Ensure ROCm/CUDA drivers match GPU architecture to avoid kernel panics.
+- **Model Verification**: Validate GGUF checksums to prevent loading corrupted weights.
 
 ## Limitations
 
-- Throughput estimates are rough classes (fast/medium/slow), not precise tok/s
 - SWA detection is based on known model names, not parsed from GGUF metadata
+- Model size database covers popular models; unknown models need `--model-size` via `check` command
 - TurboQuant requires a compatible llama.cpp build (upstream or domvox/llama.cpp-turboquant-hip)
