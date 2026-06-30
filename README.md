@@ -4,12 +4,13 @@ Reusable skills and a dependency graph system for [Hermes Agent](https://github.
 
 ## What's here
 
-**3 skills** you can drop into `~/.hermes/skills/` and use immediately, plus **3 tools** that verify dependencies, visualize the skill graph, and suggest new skills from your session history.
+**4 skills** you can drop into `~/.hermes/skills/` and use immediately, plus **3 tools** that verify dependencies, visualize the skill graph, and suggest new skills from your session history.
 
 | Skill | Version | Description |
 |-------|---------|-------------|
 | [bitwarden](bitwarden/SKILL.md) | 1.5.0 | Bitwarden Secrets Manager CLI (`bws`) — secret injection, env vars, dotenv |
 | [email-himalaya](email-himalaya/SKILL.md) | 1.0.0 | Composition skill — chains bitwarden → himalaya for passwordless email |
+| [hermes-tweet](hermes-tweet/SKILL.md) | 0.1.6 | Native Hermes Tweet plugin wrapper for X/Twitter search, reads, monitors, exports, and approved X actions through Xquik |
 | [skill-autoresearch](skill-autoresearch/SKILL.md) | 0.7.0 | Automated evaluation loop — benchmark → diagnose → verify → patch → KEEP/REVERT |
 
 ## Skill Graph
@@ -116,6 +117,7 @@ Then run `skill-graph-test` to verify everything works.
 # Skills
 cp -r bitwarden/ ~/.hermes/skills/bitwarden/
 cp -r email-himalaya/ ~/.hermes/skills/email-himalaya/
+cp -r hermes-tweet/ ~/.hermes/skills/hermes-tweet/
 cp -r skill-autoresearch/ ~/.hermes/skills/skill-autoresearch/
 
 # Tools
