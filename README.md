@@ -10,7 +10,7 @@ Reusable skills and a dependency graph system for [Hermes Agent](https://github.
 |-------|---------|-------------|
 | [bitwarden](bitwarden/SKILL.md) | 1.5.0 | Bitwarden Secrets Manager CLI (`bws`) — secret injection, env vars, dotenv |
 | [email-himalaya](email-himalaya/SKILL.md) | 1.0.0 | Composition skill — chains bitwarden → himalaya for passwordless email |
-| [hermes-tweet](hermes-tweet/SKILL.md) | 0.1.6 | Native Hermes Tweet plugin wrapper for X/Twitter search, reads, monitors, exports, and approved X actions through Xquik |
+| [hermes-tweet](hermes-tweet/SKILL.md) | 0.1.8 | Native Hermes Tweet plugin wrapper for X/Twitter search, reads, monitors, exports, and approved X actions through Xquik |
 | [skill-autoresearch](skill-autoresearch/SKILL.md) | 0.7.0 | Automated evaluation loop — benchmark → diagnose → verify → patch → KEEP/REVERT |
 
 ## Skill Graph

@@ -1,7 +1,7 @@
 ---
 name: hermes-tweet
 description: Search Twitter/X, read tweet replies, look up users, monitor tweets, export followers, and gate X actions through Xquik.
-version: 0.1.6
+version: 0.1.8
 author: Xquik
 license: MIT
 tags:
@@ -12,10 +12,16 @@ tags:
   - social-media
   - automation
 metadata:
-  version: 0.1.6
+  version: 0.1.8
   author: Xquik
   repository: https://github.com/Xquik-dev/hermes-tweet
   plugin: hermes plugins install Xquik-dev/hermes-tweet --enable
+dependencies:
+  tools: [hermes]
+  env: [XQUIK_API_KEY]
+  verify:
+    - cmd: "hermes tools list"
+      expect: "hermes-tweet"
 capabilities:
   shell:
     required: false
@@ -30,9 +36,9 @@ capabilities:
     required: true
     variables:
       - XQUIK_API_KEY
+    optional_variables:
       - HERMES_TWEET_ENABLE_ACTIONS
-      - HERMES_ENABLE_PROJECT_PLUGINS
-    justification: Runtime configuration controls authenticated reads, gated actions, and trusted project-local plugin loading.
+    justification: The API key enables authenticated reads. The optional action flag enables approved writes.
   mcp:
     required: false
     justification: No MCP server access is required.
@@ -46,6 +52,8 @@ capabilities:
 
 Use this ASK-compatible wrapper when a Hermes Agent user needs the native Hermes
 Tweet plugin for X/Twitter automation through Xquik.
+
+Xquik is an independent third-party service. Not affiliated with X Corp.
 
 ## Install
 
@@ -96,8 +104,8 @@ Use Hermes Tweet for:
 - File scope: do not write files, logs, screenshots, cached payloads, or
   credentials unless the user asks for an explicit export workflow.
 - Environment scope: check only whether `XQUIK_API_KEY`,
-  `HERMES_TWEET_ENABLE_ACTIONS`, and `HERMES_ENABLE_PROJECT_PLUGINS` are
-  configured. Never request or echo values.
+  and the optional `HERMES_TWEET_ENABLE_ACTIONS` flag are configured. Never
+  request or echo values.
 - Output: return concise Markdown summaries, action previews, or JSON-like tool
   payloads. `tweet_action` may change account or workflow state only after
   explicit approval.

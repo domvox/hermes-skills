@@ -1,13 +1,30 @@
 #!/usr/bin/env python3
 """skill-graph-test — Dependency and composition verification for Hermes skills"""
-import yaml, subprocess, os, sys, glob
+import yaml, subprocess, os, sys, glob, re
+
+ENV_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+def env_entries(path):
+    """Yield valid key/value pairs from a dotenv file."""
+    with open(path) as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[7:].lstrip()
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if ENV_KEY.fullmatch(key):
+                yield key, value.strip()
 
 BWS_TOKEN = ""
 try:
-    with open(os.path.expanduser("~/.hermes/.env")) as f:
-        for line in f:
-            if line.startswith("BWS_ACCESS_TOKEN="):
-                BWS_TOKEN = line.strip().split("=", 1)[1]
+    for key, value in env_entries(os.path.expanduser("~/.hermes/.env")):
+        if key == "BWS_ACCESS_TOKEN":
+            BWS_TOKEN = value
 except: pass
 
 ENV = {**os.environ, "BWS_ACCESS_TOKEN": BWS_TOKEN}
@@ -51,8 +68,8 @@ def test_skill(skill_dir):
         found = bool(ENV.get(var))
         if not found:
             try:
-                with open(os.path.expanduser("~/.hermes/.env")) as ef:
-                    found = any(l.startswith(var + "=") for l in ef)
+                found = any(key == var for key, _ in
+                            env_entries(os.path.expanduser("~/.hermes/.env")))
             except: pass
         check(found, f"env: {var}")
 
@@ -107,15 +124,12 @@ def pii_scan():
     skip = {"access", "token", "password", "key", "api", "secret", "bot", "base", "url",
             "home", "room", "user", "id", "provider", "model", "vision", "auxiliary",
             "messaging", "cwd", "slug", "matrix", "discord", "openrouter", "firecrawl",
-            "parallel", "bws", "openai", "allowed", "users"}
-    with open(env_file) as f:
-        for line in f:
-            if "=" not in line: continue
-            key = line.split("=")[0].strip()
-            parts = [p.lower() for p in key.split("_") if len(p) > 3]
-            for p in parts:
-                if p not in skip:
-                    pii_tokens.add(p)
+            "parallel", "bws", "openai", "xquik", "allowed", "users"}
+    for key, _ in env_entries(env_file):
+        parts = [p.lower() for p in key.split("_") if len(p) > 3]
+        for p in parts:
+            if p not in skip:
+                pii_tokens.add(p)
 
     if not pii_tokens: return
 
